@@ -1,4 +1,4 @@
-# AXIS v6.0
+# AXIS v6
 
 Red Team 🤝 Blue Team — porque quebrar coisas é fácil, difícil é explicar no relatório.
 
