@@ -1,123 +1,165 @@
-# Axis-core
+AXIS v6.0
 
-Plataforma integrada de **Red Team e Blue Team** para Windows. Interface web local + CLI.
-Zero dependência de runtime além do binário `axis` e do próprio `axis-gui.exe`.
+Red Team 🤝 Blue Team — porque quebrar coisas é fácil, difícil é explicar no relatório.
 
-![version](https://img.shields.io/badge/version-6.0.0-00e5ff) ![platform](https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4) ![rust](https://img.shields.io/badge/rust-1.75%2B-orange)
+"version" (https://img.shields.io/badge/version-6.0.0-00e5ff) "platform" (https://img.shields.io/badge/platform-Windows%2010%2F11-0078d4) "rust" (https://img.shields.io/badge/rust-1.75%2B-orange)
 
----
+«AXIS: Um ambiente integrado de segurança ofensiva e defensiva para Windows.
 
-## O que é
-
-AXIS reúne três superfícies num único servidor local:
-
-1. **`axis-gui.exe`** — servidor HTTP em `127.0.0.1:7878` que serve uma SPA (todo o HTML/CSS/JS embutido em um `const &str`, sem `static/`, sem `include_str!`).
-2. **`axis`** — binário separado que a GUI invoca como subprocesso. Toda ação real mora nele. A GUI só orquestra.
-3. **`%USERPROFILE%\.axis\`** — diretório de estado: `env` (chaves), `scope.yaml` (alvos autorizados), `findings.sqlite` (achados), `opsec/mac-orig.json` (MAC original para reversão).
-
-Cada clique na GUI mapeia **1:1** para um comando `axis <subcomando>` que você consegue reproduzir no PowerShell elevado. Nada acontece "por mágica" — o cliente não pode fazer nada que o servidor não tenha aprovado.
-
-### Renomeações v6.0
-
-Rebrand profissional das superfícies visíveis. Funcionalidade idêntica — só nomenclatura.
-
-| v5.x | v6.0 |
-|---|---|
-| `axis stealer --action browsers` | `axis collect --action browsers` |
-| `axis attack byovd-killer` | `axis emulate byovd-killer` |
-| `axis wifi --action scan` | `axis wireless --action scan` |
-| `axis ad --action enum` | `axis directory --action enum` |
-| `defense --action hades-*` | `defense --action sentinel-*` |
-| `hades_engine.py` | `sentinel_engine.py` |
-| categoria "Credential Access" | categoria "Credential Hygiene" |
-| categoria "Ataque" | categoria "Emulação de Adversário" |
+Tradução: Um lugar onde o Red Team faz perguntas inconvenientes e o Blue Team precisa ter respostas melhores que "não sei, chefe".»
 
 ---
 
-## Arquitetura
+📌 O que diabos é o AXIS?
 
-```
+O AXIS é uma plataforma integrada de Red Team e Blue Team, desenvolvida para Windows, com interface web local e CLI independente.
+
+Nada de depender de 47 runtimes, 18 serviços externos e uma invocação demoníaca para abrir o programa.
+
+São três componentes principais:
+
+1. "axis-gui.exe" — servidor HTTP local em "127.0.0.1:7878", responsável por servir a interface SPA. HTML, CSS e JS ficam embutidos diretamente em um "const &str". Nada de pasta "static/" ou arquivos perdidos na dimensão da build.
+2. "axis" — o verdadeiro funcionário do mês. Binário separado que executa as operações solicitadas pela GUI. A interface organiza, o CLI trabalha.
+3. "%USERPROFILE%\.axis\" — diretório de estado, onde ficam configurações, chaves, escopo autorizado, findings e informações necessárias para reversões.
+
+Regra fundamental: cada botão da interface corresponde a um comando real do CLI.
+
+Ou seja, não existe botão mágico que resolve tudo enquanto o desenvolvedor finge que entende o próprio código.
+
+A GUI não possui autoridade para aprovar operações que o servidor rejeitou. O AXIS não confia nem no próprio JavaScript. E sinceramente? Correto.
+
+🔄 O que mudou na versão 6.0?
+
+Foi realizado um rebranding das superfícies visíveis.
+
+A funcionalidade foi mantida, mas alguns nomes receberam uma apresentação mais profissional.
+
+Antes (v5.x)| Agora (v6.0)
+"axis stealer --action browsers"| "axis collect --action browsers"
+"axis attack byovd-killer"| "axis emulate byovd-killer"
+"axis wifi --action scan"| "axis wireless --action scan"
+"axis ad --action enum"| "axis directory --action enum"
+"hades-*"| "sentinel-*"
+"hades_engine.py"| "sentinel_engine.py"
+Credential Access| Credential Hygiene
+Ataque| Emulação de Adversário
+
+Aparentemente, trocar os nomes não aumenta o desempenho, mas pelo menos agora o programa não parece ter sido desenvolvido por um vilão de desenho animado.
+
+---
+
+🏗️ Arquitetura
+
+O AXIS trabalha com uma separação clara entre interface, execução e armazenamento.
 
 ┌──────────────────────────────────────────────────────────────┐
-│  Browser (127.0.0.1:7878)                                    │
-│  ┌────────────┬────────────┬────────────┬─────────┬───────┐  │
-│  │  módulos   │ ⌨ cli/aura │ ⚡ apis    │⚙ sistema│ docs  │  │
-│  └─────┬──────┴──────┬─────┴─────┬──────┴────┬────┴───┬───┘  │
-└────────┼─────────────┼───────────┼───────────┼────────┼──────┘
-│  fetch /api/run /api/config /api/spawn /api/state
-▼
+│                    BROWSER · 127.0.0.1:7878                  │
+│                                                              │
+│   Módulos │ CLI/AURA │ APIs │ Sistema │ Docs                 │
+│                                                              │
+└────────────────────────────┬─────────────────────────────────┘
+                             │
+                       HTTP / API
+                             │
+                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  axis-gui (Rust · axum · tokio)                              │
-│  · is_irreversible()  → allowlist server-side                │
-│  · opsec_quick()      → cache 10s · registry + Get-NetAdapter│
-│  · tokio::process::Command → axis <args>                     │
-└────────────────────────┬─────────────────────────────────────┘
-▼
+│                 AXIS-GUI · RUST / AXUM                       │
+│                                                              │
+│  • is_irreversible() → validação server-side                 │
+│  • opsec_quick()     → cache de 10 segundos                  │
+│  • tokio::process    → gerenciamento do CLI                  │
+│                                                              │
+└────────────────────────────┬─────────────────────────────────┘
+                             │
+                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  axis (CLI · binário separado)                               │
-│  recon · opsec · collect · defense · hardening · forensics…  │
-└────────────────────────┬─────────────────────────────────────┘
-▼
+│                     AXIS · CLI                               │
+│                                                              │
+│  recon · opsec · collect · defense · hardening · forensics   │
+│                                                              │
+└────────────────────────────┬─────────────────────────────────┘
+                             │
+                             ▼
 ┌──────────────────────────────────────────────────────────────┐
-│  %USERPROFILE%.axis\                                        │
-│  env · scope.yaml · findings.sqlite · opsec\mac-orig.json    │
+│                %USERPROFILE%\.axis\                          │
+│                                                              │
+│  env · scope.yaml · findings.sqlite · opsec                  │
+│                                                              │
 └──────────────────────────────────────────────────────────────┘
 
-```
+A regra de ouro:
 
-Regra de ouro: `axis-gui.exe` nunca executa nada que `axis` não saiba fazer. Se você matar a GUI, todos os comandos continuam vivos na CLI.
+"axis-gui.exe" não executa operações que o "axis" não conhece.
+
+Se a GUI fechar, o CLI continua existindo. Se o navegador travar, o backend não perde sua identidade. Se o CSS quebrar, bom... pelo menos o problema não é de segurança.
 
 ---
 
-## Instalação (Windows)
+💻 Instalação
 
-### Pré-requisitos
+Pré-requisitos
 
-| Requisito | Versão | Notas |
-|---|---|---|
-| Windows 10 (1909+) ou 11 | | |
-| PowerShell | 5.1 (já vem) | |
-| Rust toolchain | 1.75+ | `rustup target add x86_64-pc-windows-msvc` |
-| WireGuard (opcional) | qualquer | necessário só se for usar killswitch |
-| `sqlite3.exe` (opcional) | qualquer | se ausente, cai para `findings.json` |
+Requisito| Versão| Observação
+Windows 10 (1909+) ou 11| —| Sistema suportado
+PowerShell| 5.1+| Já vem instalado
+Rust| 1.75+| Necessário para compilação
+WireGuard| Opcional| Para funcionalidades de killswitch
+sqlite3.exe| Opcional| Sem ele, fallback para JSON
 
-### Build
+Compilando
 
-```powershell
 git clone <repo>
 cd axis\gui
 cargo build --release
-```
 
-Saída:
+O resultado estará em:
 
-```
 target\release\axis-gui.exe
-```
 
-Também é preciso compilar o CLI em axis\ (repo separado) e colocar axis.exe no PATH, ou apontar via AXIS_BIN.
+Também é necessário compilar o CLI separadamente e disponibilizar "axis.exe" no PATH ou configurar "AXIS_BIN".
 
-Rodar
+Inicializando
 
-```powershell
-# terminal normal
+# Inicialização normal
 .\target\release\axis-gui.exe
 
-# ou com binário explícito
+# Ou especificando o executável do CLI
 $env:AXIS_BIN = "C:\axis\target\release\axis.exe"
 .\target\release\axis-gui.exe
-```
 
-Abra http://127.0.0.1:7878.
+Agora abra:
 
-Módulos de hardening, defender, firewall, MAC spoof e aquisição de memória exigem terminal elevado (Administrador). Se o axis-gui.exe rodar como usuário comum, esses módulos vão falhar com Permission denied ou exit 5 — a GUI não eleva sozinha.
+http://127.0.0.1:7878
+
+Pronto. A central de operações está aberta.
+
+<sub>Observação: não, isso não significa que você virou o protagonista de Mr. Robot. Ainda precisa entender o que está fazendo.</sub>
+
+⚠️ Permissões administrativas
+
+Alguns módulos exigem PowerShell elevado:
+
+- Hardening;
+- Windows Defender;
+- Firewall;
+- Gerenciamento de MAC;
+- Aquisição de memória.
+
+Se o programa for iniciado como usuário comum, essas operações podem falhar com "Permission denied" ou código de saída "5".
+
+A GUI não solicita elevação automaticamente.
+
+O Windows não vai entregar privilégios administrativos só porque você abriu uma interface bonita.
 
 ---
 
-Quick start
+🚀 Quick Start
 
-```powershell
-# 1) escopo mínimo — sem isso, nada que toca a rede executa
+Antes de começar, configure o escopo autorizado.
+
+Sem escopo, sem operação de rede. Simples assim.
+
+# 1. Criando um escopo de laboratório local
 @"
 engagement: lab-window
 window_start: 2026-01-01
@@ -127,263 +169,556 @@ targets:
   - host: 127.0.0.1
 "@ | Set-Content "$env:USERPROFILE\.axis\scope.yaml"
 
-# 2) subir a GUI
+# 2. Inicializando a GUI
 .\axis-gui.exe
 
-# 3) abrir o navegador, autenticar (credenciais são locais — não há backend real),
-#    depois abrir a aba ⌨ cli e rodar:
-aura init          # mostra os slots de chave que faltam
-aura ritual        # OPSEC completo: audit → killswitch → MAC
-aura whoami        # cartão de identidade
-```
+# 3. Abrindo o console AURA
+
+Dentro da aba CLI:
+
+aura init
+aura whoami
+aura vision
+
+Esses comandos apresentam a configuração inicial, a identidade do operador e o dashboard.
+
+O "aura ritual" também está disponível para executar a sequência de auditoria e apresentar as opções de postura OPSEC.
 
 ---
 
-Abas
+🖥️ Conhecendo a interface
 
-módulos — o trabalho principal
+O AXIS possui cinco abas principais.
 
-Sidebar com 19 categorias, busca fuzzy tolerante a erro (Ctrl+K abre a palette). Form gerado dinamicamente; output com abas stdout / stderr / raw. Cores ANSI preservadas (truecolor, 256, 16).
+1. 📦 Módulos — onde o trabalho acontece
 
-Comandos com efeito destrutivo disparam modal vermelho exigindo digitar EXECUTE. O cliente e o servidor verificam independentemente — não adianta editar o JS.
+A central de operações.
 
-⌨ cli — console AURA
+- 19 categorias;
+- Aproximadamente 95 módulos;
+- Busca fuzzy;
+- Palette de comandos com "Ctrl + K";
+- Formulários dinâmicos;
+- Output separado em "stdout", "stderr" e "raw";
+- Suporte a cores ANSI.
 
-Terminal dedicado com autocomplete contextual. Aceita todos os comandos base (set, get, run, audit, exfil) e a família aura. Chips de atalho abaixo do input para os comandos mais usados.
+A busca tolera erros de digitação. Porque até desenvolvedores profissionais digitam "recon" como se estivessem tendo uma convulsão no teclado.
 
-⚡ apis — chaves externas
+Confirmação de operações sensíveis:
 
-Grid de cards: HIBP, Shodan, VirusTotal, GitHub, Telegram (token + chat), Discord webhook, Cloudflare Worker, proxy padrão. Cada card tem BIND (grava em env) e TEST. Status ✓ / ✗ reflete o env atual — mascarado na leitura, nunca ecoado pela rede.
+Operações classificadas como irreversíveis exigem uma confirmação explícita.
 
-⚙ sistema — configuração do programa
+O modal solicita que o operador digite:
 
-Porta, binário axis em uso, processos em background (spawn/kill), scope.yaml, cluster OPSEC (audit / killswitch / MAC / persistência) e controle do engine SENTINEL.
+"EXECUTE"
 
-docs — este arquivo
+A validação acontece tanto no cliente quanto no servidor.
 
-Embutido na própria SPA. Não depende de internet.
+Editar o JavaScript para tentar contornar a confirmação é basicamente tentar convencer uma porta fechada a virar uma janela.
 
----
+2. ⌨️ CLI — console AURA
 
-Comandos AURA
+Um terminal dedicado com autocomplete contextual.
 
-Chamada AURA é uma camada de orquestração sobre as rotas existentes (/api/config, /api/run, /api/spawn, /api/state, /api/opsec-quick). Nenhum endpoint novo foi adicionado — só açúcar.
+Suporta:
 
-Comando Efeito
-aura · aura help cartão de ajuda formatado
-aura init onboarding: mostra slots em aberto com comandos prontos pra copiar
-aura bind <svc> <valor> grava a chave mapeada — hibp, shodan, vt, github, telegram-token, telegram-chat, discord, cf, proxy
-aura unbanish <svc> remove a chave
-aura whoami operador, host, tema, escopo, findings
-aura vision dashboard de duas colunas — host + OPSEC
-aura ping roda axis opsec audit, imprime resultado colorido
-aura ritual audit → oferece killswitch → oferece MAC, sequencial
-aura themes · aura theme <nome> axis, aurora, matrix, blood, ghost
-aura export dump JSON de env + scope.yaml + tema + operador
-aura wipe apaga todas as chaves (com confirm() nativo)
-aura crown banner de operador em caixa
-aura lock encerra a sessão
+- Comandos base;
+- Família de comandos AURA;
+- Autocomplete;
+- Atalhos rápidos;
+- Execução de comandos disponíveis no CLI.
 
-Aliases aceitos no bind: vt = virustotal, cf = cloudflare, telegram = telegram-token, telegram_chat = telegram-chat.
+É basicamente o terminal tradicional, mas com uma interface que não parece ter sido projetada durante a Revolução Industrial.
 
----
+3. ⚡ APIs — integrações externas
 
-Categorias de módulos
+Central de configuração de credenciais e serviços.
 
-Total: ~95 módulos distribuídos em 19 categorias. A tabela completa está em docs na própria GUI. Resumo:
+Integrações disponíveis:
 
-Categoria Foco Exemplos
-Branding & Utilidades banner, imagem→ASCII 
-OPSEC · Operador anti-forense do operador audit, MAC set/reset, killswitch, STUN leak, Tor NEWNYM
-Reconhecimento descoberta port scan, banner grab, DNS enum, web fingerprint
-OSINT · Inteligência Pública coleta pública dorks, whois, HIBP, Shodan
-Emulação de Adversário exploração controlada wordlist, wireless scan/PMKID, privesc enum, persistência, directory bloodhound/kerberoast
-Credential Hygiene inventário e rotação local navegadores, carteiras, apps, rotação, keepalive
-Defesa Ativa detecção defender, firewall, autoruns, schtasks, services, patch level, bitlocker, credguard, SMB, YARA, EVTX query, persistence audit, LOLBAS, AMSI, ETW, WDAC, LAPS, ASR, conexões, procs assinados
-Purple Team emulação controlada atomic red team, coverage map, caldera
-Hardening · Endurecimento CIS baseline CIS baseline, ASR enable, Credential Guard, SMB, firewall default-deny, Defender agressivo
-Emulação Avançada técnicas de evasão (lab) Moonwalk++, Tartarus Gate, EDR-Freeze, Hyper-V NAT, BYOVD, ADCS ESC, IPI/LLM
-Detecção & Resposta caça e contenção Sysmon + ETW, sentinel de log, caça-injeção, guarda do dumper, WDAC, olho de hipervisor, playbook de contenção
-SENTINEL · Defesa Ativa engine modular 5 monitores paralelos com correlator
-Cloud Security multi-provider AWS (enum, S3, IMDS), Azure device code, GCP IMDS
-Container Security escape + enum Docker, K8s RBAC, escape
-IoT · Embarcados firmware + MQTT extração de firmware, subscribe
-Hardware físico Proxmark3, UART scan
-Supply Chain typosquat + confusion npm/pypi/crates
-Forense Digital aquisição triage IR, memória (WinPmem), disco, timeline
-Relatórios entrega gerar markdown
+Serviço| Finalidade
+HIBP| Inteligência sobre exposição de credenciais
+Shodan| Inteligência de ativos conectados
+VirusTotal| Análise de indicadores
+GitHub| Integração com a plataforma
+Telegram| Bot e chat
+Discord| Webhook
+Cloudflare Worker| Integração externa
+Proxy| Configuração de proxy padrão
 
-Balanço: a superfície defensiva (Defesa Ativa + Hardening + Detecção & Resposta + Purple = ~45 módulos) é maior que a ofensiva consolidada (Emulação + Credential Hygiene = ~15). Os ~40 coletores por alvo foram fundidos em 3 módulos por família (navegadores, carteiras, apps).
+Cada card possui:
 
----
+- "BIND": configura a credencial;
+- "TEST": verifica a configuração;
+- Indicador de status.
 
-OPSEC
+As chaves são mascaradas na leitura e não devem ser exibidas em respostas de status.
 
-O AXIS não se auto-protege sozinho — ele expõe o estado e oferece as ferramentas. Três camadas, todas configuráveis pela aba ⚙ sistema ou CLI:
+O objetivo é integrar serviços, não transformar seu token em decoração pública.
 
-1. Killswitch (Windows Firewall + WireGuard)
+4. ⚙️ Sistema — central de configuração
 
-Bloqueia todo tráfego de saída que não seja pela interface VPN. Se a VPN cair, o host fica offline — não vaza para o IP real.
+Aqui ficam as configurações gerais:
 
-```powershell
-axis opsec killswitch enable --iface "WireGuard"
-axis opsec killswitch --iface "WireGuard"   # → up:true, rules_present:true
-axis opsec killswitch disable               # reversível
-```
+- Porta do servidor;
+- Caminho do binário "axis";
+- Processos em background;
+- Configuração do "scope.yaml";
+- Estado OPSEC;
+- Configuração do SENTINEL.
 
-2. Rotação de MAC (registro NetworkAddress)
+Basicamente, a sala de máquinas.
 
-```powershell
-# manual
-axis opsec mac set "Wi-Fi"              # grava original em ~/.axis/opsec/mac-orig.json
-axis opsec mac reset "Wi-Fi"            # restaura original
+Se alguma coisa der errado, é um dos primeiros lugares para olhar.
 
-# daemon (não sobrevive reboot)
-axis opsec mac schedule "Wi-Fi" --interval 300 --jitter 60
+5. 📚 Docs — documentação
 
-# persistente (Task Scheduler)
-axis opsec persist install --iface "Wi-Fi" --interval 300 --jitter 60
-```
+Este README, incorporado à própria SPA.
 
-O detect (/api/opsec-quick) lê HKLM\SYSTEM\CurrentControlSet\Control\Class{4d36e972-e325-11ce-bfc1-08002be10318}...\NetworkAddress em todos os adaptadores. Se algum tiver valor diferente do permanente, conta como spoofado.
+Sim, a documentação mora dentro do programa.
 
-3. Aviso de "postura" antes de ações sensíveis
-
-Antes de qualquer módulo sensível ou com efeito destrutivo, a GUI consulta /api/opsec-quick (cache 10s). Se o host estiver com VPN down, MAC não-spoofado, ou sem scope.yaml, o modal mostra o estado atual e três opções: RODAR AUDIT, CONFIGURAR OPSEC, EXECUTAR (red).
-
-Calibração recomendada:
-
-```powershell
-axis opsec killswitch enable --iface "WireGuard"
-axis opsec mac set "Wi-Fi"
-axis opsec audit    # score ≥ 80, gaps=[]
-```
+É uma relação simbiótica entre código e documentação. Até o bug precisa ler o manual.
 
 ---
 
-Gate de escopo
+✨ AURA — Assistente de Operações
 
-Todo módulo que toca a rede lê %USERPROFILE%.axis\scope.yaml antes de qualquer pacote sair. Sem arquivo → exit 3, nada é enviado. Com arquivo, alvo fora da lista targets: → também exit 3.
+AURA é uma camada de orquestração sobre as rotas existentes da API.
 
-Formato mínimo:
+Não adiciona endpoints novos. Apenas simplifica o acesso às funcionalidades.
 
-```yaml
+Em outras palavras: menos digitação, mais organização e menos chances de esquecer o que estava fazendo.
+
+Comandos disponíveis
+
+Comando| Função
+"aura" / "aura help"| Exibe o cartão de ajuda
+"aura init"| Onboarding e configuração inicial
+"aura bind <svc> <valor>"| Configura uma credencial
+"aura unbanish <svc>"| Remove uma credencial
+"aura whoami"| Exibe informações do operador
+"aura vision"| Dashboard de host e OPSEC
+"aura ping"| Executa auditoria OPSEC
+"aura ritual"| Sequência de auditoria e opções OPSEC
+"aura themes"| Lista os temas
+"aura theme <nome>"| Altera o tema
+"aura export"| Exporta configurações
+"aura wipe"| Remove todas as chaves após confirmação
+"aura crown"| Banner do operador
+"aura lock"| Encerra a sessão
+
+Temas disponíveis
+
+axis
+aurora
+matrix
+blood
+ghost
+
+Porque até uma ferramenta de segurança merece escolher sua skin.
+
+Aliases de credenciais
+
+vt       → virustotal
+cf       → cloudflare
+telegram → telegram-token
+telegram_chat → telegram-chat
+
+Nota de segurança: "aura export" pode incluir credenciais em texto plano. Trate a saída como informação sensível.
+
+---
+
+🧩 Categorias de módulos
+
+O AXIS reúne aproximadamente 95 módulos em 19 categorias.
+
+Sim, é bastante coisa. O menu de configurações já está praticamente pedindo férias.
+
+Categoria| Especialidade| Exemplos
+Branding & Utilidades| Identidade e utilidades| Banner, imagem para ASCII
+OPSEC · Operador| Postura operacional| Auditoria, MAC, killswitch
+Reconhecimento| Descoberta de ativos| DNS, fingerprint, inventário
+OSINT · Inteligência Pública| Fontes abertas| WHOIS, HIBP, Shodan
+Emulação de Adversário| Testes controlados| Enumeração, análise de exposição
+Credential Hygiene| Higiene de credenciais| Inventário e rotação local
+Defesa Ativa| Proteção do host| Defender, Firewall, YARA, EVTX
+Purple Team| Validação defensiva| Atomic Red Team, Coverage Map
+Hardening · Endurecimento| Fortalecimento do sistema| CIS Baseline, SMB, ASR
+Emulação Avançada| Pesquisa em laboratório| Técnicas experimentais e validação
+Detecção & Resposta| Investigação de eventos| Sysmon, ETW, playbooks
+SENTINEL| Monitoramento modular| Cinco monitores e correlator
+Cloud Security| Segurança em nuvem| AWS, Azure, GCP
+Container Security| Segurança de containers| Docker, Kubernetes, RBAC
+IoT · Embarcados| Sistemas embarcados| Firmware, MQTT
+Hardware Físico| Pesquisa de hardware| Proxmark3, UART
+Supply Chain| Integridade de dependências| Typosquatting, Confusion
+Forense Digital| Investigação digital| Triage, memória, disco
+Relatórios| Documentação técnica| Exportação Markdown
+
+⚖️ Balanço operacional
+
+A superfície defensiva possui mais módulos que a ofensiva consolidada.
+
+- Defesa Ativa;
+- Hardening;
+- Detecção & Resposta;
+- Purple Team.
+
+Juntas, representam aproximadamente 45 módulos.
+
+A superfície de emulação e higiene de credenciais representa aproximadamente 15 módulos.
+
+Os coletores também foram reorganizados em três famílias principais.
+
+Filosofia do projeto: detectar, compreender, validar e corrigir.
+
+Porque descobrir uma vulnerabilidade e simplesmente deixá-la lá é o equivalente digital a encontrar uma infiltração e colocar um balde embaixo para sempre.
+
+---
+
+🛡️ OPSEC — Segurança operacional
+
+O AXIS disponibiliza ferramentas e informações para auxiliar na postura operacional do host.
+
+Mas atenção: nenhuma ferramenta garante anonimato ou proteção absoluta.
+
+A segurança depende da configuração, do ambiente e das decisões do operador.
+
+1. Killswitch
+
+Integração com Windows Firewall e WireGuard.
+
+O objetivo é controlar a conectividade do host de acordo com a interface VPN configurada.
+
+Uma configuração incorreta pode interromper a conectividade legítima. Valide as regras e tenha um procedimento de recuperação antes de utilizar.
+
+2. Gerenciamento de MAC
+
+O AXIS mantém informações do endereço MAC original para permitir reversão de alterações.
+
+Os recursos de gerenciamento devem ser utilizados apenas em adaptadores e equipamentos próprios ou autorizados.
+
+3. Indicador de postura
+
+A GUI consulta "/api/opsec-quick" antes de apresentar determinadas operações sensíveis.
+
+O estado pode incluir:
+
+- Disponibilidade da interface VPN;
+- Estado do adaptador;
+- Presença de escopo;
+- Indicadores de configuração OPSEC.
+
+A consulta utiliza cache de 10 segundos.
+
+Se alguma condição não estiver adequada, a interface apresenta o estado identificado e as opções disponíveis.
+
+Importante: um indicador verde não significa que o host está invulnerável. Significa apenas que as verificações implementadas não identificaram os problemas avaliados.
+
+O verde é um indicador, não uma bênção divina.
+
+---
+
+🎯 Gate de escopo
+
+Uma das partes mais importantes do AXIS.
+
+Todo módulo que interage com a rede precisa validar o arquivo:
+
+%USERPROFILE%\.axis\scope.yaml
+
+Sem escopo válido:
+
+"exit 3"
+
+Alvo não autorizado:
+
+"exit 3"
+
+O sistema não deve enviar pacotes para alvos fora do escopo aprovado.
+
+Exemplo de configuração
+
 engagement: acme-q4
 window_start: 2026-11-01
 window_end:   2026-11-30
 contact: security@acme.example
+
 targets:
-  - host: 10.10.10.10
-    ports: [22,80,443]
-  - host: 10.10.10.20
-```
+  - host: 127.0.0.1
+    ports: [22, 80, 443]
 
-O gate é aplicado no CLI (axis), não na GUI. Não adianta editar scope.yaml a quente com a GUI aberta sem passar pelo botão SALVAR ESCOPO — o cache do lado do servidor é invalidado só via POST /api/config.
+Utilize somente endereços e sistemas explicitamente autorizados.
 
----
+O gate é aplicado pelo CLI, não apenas pela GUI.
 
-Controle de operações sensíveis
+Alterações realizadas diretamente no arquivo podem não atualizar o cache do servidor. Utilize a função SALVAR ESCOPO para invalidar a configuração armazenada.
 
-A allowlist is_irreversible() em src/main.rs rejeita sem confirm:true, independentemente do que o cliente enviou:
-
-prefixo motivos
-opsec mac set, mac reset, killswitch enable, killswitch disable, persist install 
-persist qualquer
-forensics disk, memory 
-defender disable, exclusions 
-firewall disable 
-bitlocker off, disable 
-bcdedit vssadmin wevtutil cl schtasks delete reg delete sc delete qualquer
-
-Para novos verbos destrutivos, edite a função — é uma linha.
+O escopo é a fronteira do projeto. Não é uma sugestão decorativa em YAML.
 
 ---
 
-Configuração (%USERPROFILE%.axis)
+🚨 Controle de operações sensíveis
 
-arquivo conteúdo
-env KEY=VALUE por linha, ordenado. Lido em cada spawn do axis. Mascarado em /api/config (chaves com TOKEN/KEY/PASS/WEBHOOK/SECRET no nome).
-scope.yaml alvos autorizados. Formato acima.
-findings.sqlite achados. Se sqlite3.exe estiver ausente, cai para findings.json (array JSON).
-opsec/mac-orig.json MAC original por interface, para reversão.
-env.example gerado na primeira execução, com todas as chaves possíveis comentadas.
+O AXIS possui uma allowlist de operações classificadas como irreversíveis em "is_irreversible()".
 
-Variáveis de ambiente do processo axis-gui.exe sobrescrevem o arquivo:
+Essas operações exigem confirmação validada no servidor.
 
-```powershell
+Exemplos de categorias protegidas:
+
+Categoria| Exemplos
+OPSEC| Alterações de MAC e configurações de conectividade
+Persistência| Alterações em tarefas persistentes
+Forense| Aquisição de disco e memória
+Defender| Alterações de proteção e exclusões
+Firewall| Alterações de configuração
+BitLocker| Alterações no estado de proteção
+Sistema| Operações administrativas sensíveis
+
+A lista exata é definida no código-fonte.
+
+Por que isso existe?
+
+Porque um clique acidental não deveria ter o poder de transformar uma tarde tranquila em um incidente de recuperação do Windows.
+
+---
+
+📂 Estrutura de configuração
+
+O diretório principal é:
+
+%USERPROFILE%\.axis\
+
+Arquivo| Finalidade
+"env"| Credenciais e variáveis
+"scope.yaml"| Escopo autorizado
+"findings.sqlite"| Banco de achados
+"findings.json"| Fallback caso SQLite não esteja disponível
+"opsec/mac-orig.json"| Informações para reversão de MAC
+"env.example"| Modelo de configuração
+
+As credenciais são carregadas pelo processo "axis" durante cada inicialização.
+
+Chaves sensíveis são mascaradas na resposta da API de configuração.
+
+Variáveis de ambiente
+
+É possível sobrescrever configurações diretamente no processo:
+
 $env:AXIS_GUI_PORT = "8787"
-$env:AXIS_BIN      = "C:\axis\target\release\axis.exe"
-```
+$env:AXIS_BIN = "C:\axis\target\release\axis.exe"
+
+Lembre-se: variáveis de ambiente também podem conter informações sensíveis.
 
 ---
 
-Troubleshooting
+🔧 Troubleshooting — quando o Windows decide participar
 
-Sintoma Causa Correção
-fetch error: Failed to fetch servidor off iniciar .\axis-gui.exe, abrir http://127.0.0.1:7878
-⚠ irreversible operation — confirm required cliente sem confirm:true digitar EXECUTE no modal
-exit 3 · scope.yaml missing sem arquivo, ou alvo não listado criar via aba ⚙ sistema → Escopo
-spawn axis: No such file axis.exe fora do PATH $env:AXIS_BIN = "..." ou $env:PATH += ";C:\axis\target\release"
-credential inventory retorna vazio (Chrome/Edge) App-Bound Encryption 127+ usar Firefox, ou injetar via --remote-debugging-port
-Sessão morre em 5min rotação não persistida cred-rotate ou keepalive ativo
-PowerShell bloqueado por GPO ExecutionPolicy restritiva servidor chama com -ExecutionPolicy Bypass; se GPO bloquear, o probe cai silencioso e OPSEC fica ✗
-opsec audit retorna ✗ vpn interface VPN não bate no regex ajustar Get-NetAdapter — regex em windows_opsec_probe (WireGuard, Wintun, TAP, OpenVPN, Tailscale, ZeroTier, SSTP, IKEv2, L2TP)
-Cache de OPSEC preso em "vulnerável" cache 10s não expirou esperar ou reiniciar GUI
-Porta 7878 ocupada outro processo $env:AXIS_GUI_PORT = "8787"
+Nem todo problema é um ataque hacker.
 
----
+Às vezes é só o Windows sendo Windows.
 
-Postura de segurança da GUI
+Sintoma| Possível causa| Solução
+"Failed to fetch"| Servidor desligado| Inicie "axis-gui.exe"
+"confirm required"| Confirmação ausente| Utilize o modal de confirmação
+"scope.yaml missing"| Escopo inexistente| Configure o escopo autorizado
+"axis.exe not found"| Binário fora do PATH| Configure "AXIS_BIN"
+Inventário vazio| Limitações de acesso do sistema| Verifique permissões e compatibilidade
+Sessão expirada| Estado de sessão não persistido| Verifique a configuração de sessão
+PowerShell bloqueado| Políticas administrativas| Consulte a GPO responsável
+OPSEC indica VPN indisponível| Interface não reconhecida| Verifique o adaptador e sua configuração
+Cache desatualizado| Cache de 10 segundos| Aguarde ou reinicie a GUI
+Porta ocupada| Outro processo utilizando 7878| Configure outra porta
 
-· Escuta somente 127.0.0.1 — não bind em 0.0.0.0. Se quiser acessar de outro host, use túnel SSH.
-· Não tem autenticação real. O "login" é localStorage — cosmético. O gate verdadeiro está no axis (escopo + is_irreversible).
-· Nunca exponha a porta 7878 numa interface pública. Se precisar, coloque um reverse proxy com mTLS na frente.
-· Chaves ficam em env em texto plano no disco do usuário. BitLocker ou EFS em %USERPROFILE%.axis\ é recomendado.
-· aura export imprime as chaves em texto plano no terminal. Não redirecione para arquivo num host compartilhado.
+Se nada funcionar, respire.
+
+Não delete o System32.
 
 ---
 
-Desenvolvimento
+🔐 Postura de segurança da GUI
+
+A interface possui algumas limitações importantes.
+
+Conhecê-las faz parte de utilizar o AXIS corretamente.
+
+Endereço de escuta
+
+O servidor escuta exclusivamente em:
+
+127.0.0.1:7878
+
+Não utilize "0.0.0.0" como endereço de escuta em ambientes expostos.
+
+Autenticação
+
+O login visual utiliza "localStorage".
+
+Ele é cosmético e não representa autenticação real.
+
+O controle efetivo depende das validações realizadas no CLI e no servidor.
+
+Credenciais
+
+As chaves ficam armazenadas em texto plano no arquivo "env".
+
+Recomenda-se proteger o diretório utilizando BitLocker, EFS e permissões adequadas do Windows.
+
+Exportação
+
+"aura export" pode imprimir credenciais em texto plano.
+
+Evite salvar ou compartilhar essa saída em ambientes não confiáveis.
+
+Exposição de rede
+
+Não exponha diretamente a porta 7878 à internet.
+
+O AXIS foi projetado para uso local.
+
+Segurança não é um tema visual. É uma propriedade da arquitetura.
+
+---
+
+🧑‍💻 Desenvolvimento
 
 Estrutura mínima:
 
-```
 axis-gui/
 ├── Cargo.toml
 └── src/
-    └── main.rs      ← INDEX_HTML (const &str) + servidor axum
-```
+    └── main.rs
 
-Não há static/, não há build.rs, não há include_str!. Tudo o que o navegador consome está em INDEX_HTML. Editar HTML/CSS/JS = editar dentro do r##"..."## e rebuildar.
+O "main.rs" contém:
 
-```powershell
+- "INDEX_HTML";
+- Interface SPA;
+- HTML;
+- CSS;
+- JavaScript;
+- Servidor Axum.
+
+Não existem:
+
+- "static/";
+- "build.rs";
+- "include_str!".
+
+Tudo está embutido no próprio executável.
+
+Compilação
+
 cargo build --release
-# ou para dev com reload
+
+Para desenvolvimento com recompilação automática:
+
 cargo watch -x run
-```
 
-Para adicionar um módulo: acrescente uma entrada em MODULES no JS, e o subcomando correspondente no CLI axis. A GUI não precisa saber o que o axis faz — só mapeia campos → argv.
+Adicionando módulos
 
----
+A integração exige:
 
-Uso autorizado
+1. Definir a entrada correspondente em "MODULES" na interface.
+2. Implementar o subcomando correspondente no CLI.
+3. Mapear os campos do formulário para argumentos.
+4. Validar permissões, escopo e efeitos colaterais.
+5. Testar em laboratório antes de disponibilizar.
 
-AXIS é uma ferramenta de segurança profissional. O gate de escopo existe porque as técnicas aqui implementadas são reais e o efeito delas em sistemas de terceiros é crime na maioria das jurisdições (Lei 12.737/2012 no Brasil, CFAA nos EUA, Computer Misuse Act no UK).
+A GUI não precisa conhecer toda a implementação interna do CLI.
 
-Uso esperado:
+Ela precisa saber quais parâmetros enviar e como apresentar o resultado.
 
-· Laboratórios próprios — VMs, hosts locais, redes de teste.
-· Sistemas com autorização escrita — contrato, NDA, ou regra de bug bounty que cubra a ação.
-· Engajamentos contratados — pentest, red team, resposta a incidentes.
-
-AUTHORIZED_USE.md na raiz do repo é a declaração vinculante. Cada módulo toca a rede só depois que o axis confirmou scope.yaml.
-
----
-
-Licença
-
-MIT — veja LICENSE. Sem garantia, sem suporte, sem SLA.
+Menos acoplamento, menos sofrimento e menos arquivos misteriosamente desaparecendo.
 
 ---
 
-Build: 6.0.0 · Última atualização: 2026-11-07 · Host alvo: Windows 10 (1909+) / Windows 11 · x86_64 · MSVC
+⚖️ Uso autorizado
+
+O AXIS é uma ferramenta de segurança profissional e deve ser utilizado exclusivamente em ambientes próprios ou com autorização explícita.
+
+As técnicas implementadas podem produzir efeitos reais em sistemas e redes.
+
+O uso não autorizado pode configurar infrações legais, incluindo:
+
+- Lei 12.737/2012 — Brasil;
+- Computer Fraud and Abuse Act — Estados Unidos;
+- Computer Misuse Act — Reino Unido.
+
+Usos esperados
+
+- Laboratórios próprios;
+- Máquinas virtuais;
+- Redes de teste;
+- Sistemas com autorização escrita;
+- Engajamentos profissionais de pentest;
+- Red Team contratado;
+- Resposta a incidentes.
+
+O arquivo "AUTHORIZED_USE.md", localizado na raiz do repositório, contém a declaração de uso autorizado.
+
+O escopo precisa estar aprovado antes de qualquer operação de rede.
+
+Se você não tem autorização para testar o sistema, não teste.
+
+Ser curioso é ótimo. Virar personagem de um processo judicial é uma péssima DLC.
+
+---
+
+📜 Licença
+
+MIT License
+
+Consulte o arquivo "LICENSE".
+
+Sem garantia, sem suporte formal e sem SLA.
+
+O AXIS é disponibilizado como está.
+
+Se funcionar, ótimo.
+
+Se não funcionar, abra o debugger antes de abrir uma nova dimensão de problemas.
+
+---
+
+🧠 Filosofia AXIS
+
+O AXIS não foi criado para ser apenas uma coleção de comandos com uma interface bonita.
+
+A proposta é integrar:
+
+- Segurança ofensiva controlada;
+- Defesa ativa;
+- Hardening;
+- Monitoramento;
+- Forense;
+- Inteligência pública;
+- Automação;
+- Governança de escopo.
+
+Tudo em um ambiente modular, local e independente.
+
+O objetivo não é apenas encontrar problemas. É entender, validar, documentar e corrigir.
+
+---
+
+<sub>AXIS v6.0.0
+
+Build: "6.0.0"
+
+Última atualização: "2026-11-07"
+
+Plataforma: Windows 10 (1909+) / Windows 11
+
+Arquitetura: x86_64 · MSVC
+
+Backend: Rust · Axum · Tokio
+
+Frontend: SPA embutida
+
+CLI: "axis"
+
+Interface: "axis-gui.exe"
+
+Made with Rust, paranoia saudável e uma quantidade questionável de café.
+
+</sub>
