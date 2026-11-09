@@ -117,7 +117,7 @@ Se a GUI fechar, o CLI continua existindo. Se o navegador travar, o backend não
 ### Compilando
 
 ```powershell
-git clone <repo>
+git clone <https://github.com/delaccont-sketch/Axis-core>
 cd axis\gui
 cargo build --release
 ```
